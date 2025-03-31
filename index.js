@@ -1,5 +1,7 @@
 const { ApolloServer } = require('@apollo/server')
 const { startStandaloneServer } = require('@apollo/server/standalone')
+const { GraphQLError } = require('graphql')
+const { v1: uuid } = require('uuid')
 
 let authors = [
   {
@@ -17,11 +19,11 @@ let authors = [
     id: "afa5b6f1-344d-11e9-a414-719c6709cf3e",
     born: 1821
   },
-  { 
+  {
     name: 'Joshua Kerievsky', // birthyear not known
     id: "afa5b6f2-344d-11e9-a414-719c6709cf3e",
   },
-  { 
+  {
     name: 'Sandi Metz', // birthyear not known
     id: "afa5b6f3-344d-11e9-a414-719c6709cf3e",
   },
@@ -69,7 +71,7 @@ let books = [
     author: 'Joshua Kerievsky',
     id: "afa5de01-344d-11e9-a414-719c6709cf3e",
     genres: ['refactoring', 'patterns']
-  },  
+  },
   {
     title: 'Practical Object-Oriented Design, An Agile Primer Using Ruby',
     published: 2012,
@@ -99,17 +101,102 @@ let books = [
 
 const typeDefs = `
   type Query {
-    dummy: Int
-    bookCount: Int
-    authorCount: Int
+    bookCount: Int!
+    authorCount: Int!
+    allBooks(author: String, genre: String): [Book!]!
+    allAuthors: [Author!]
+  }
+  
+  type Mutation {
+    addBook(
+      title: String!
+      author: String!
+      published: Int!
+      genres: [String!]!
+    ):Book,
+
+    editAuthor(
+      name: String!
+      setBornTo: Int!
+    ):Author
+  }
+
+  type Book {
+    title: String!
+    author: String!
+    published: Int!
+    genres: [String!]!
+    id: ID!
+  }
+  
+  type Author {
+    name: String!
+    bookCount: Int!,
+    born: Int,
+    id: ID!
   }
 `
 
 const resolvers = {
   Query: {
-    dummy: () => 0,
     bookCount: () => books.length,
     authorCount: () => authors.length,
+    allBooks: (root, args) => {
+      if (!(args.author || args.genre)) {
+        return books
+      }
+      let filteredBooks = []
+      if (args.author) {
+        filteredBooks = books.filter(book => book.author === args.author)
+      }
+      if (args.genre) {
+        const booksByGenre = books.filter(book => book.genres.includes(args.genre))
+        filteredBooks = filteredBooks.concat(booksByGenre)
+      }
+      return filteredBooks
+    },
+    allAuthors: () => authors,
+  },
+  Author: {
+    bookCount: (root) => {
+      return books.reduce((count, currentBook) => (currentBook.author === root.name ? count + 1 : count), 0)
+    }
+  },
+  Book: {
+    title: (root) => root.title,
+    author: (root) => root.author,
+    published: (root) => root.published,
+    genres: (root) => root.genres
+  },
+  Mutation: {
+    addBook: (root, args) => {
+      if (books.find(book => book.title == args.title)) {
+        throw new GraphQLError('Book title must be unique', {
+          extensions: {
+            code: 'BAD_USER_INPUT',
+            invalidArgs: args.title
+          }
+        })
+      }
+      const book = { ...args, id: uuid() }
+      books = books.concat(book)
+      if (!authors.find(author => author.name == book.author)) {
+        authors = authors.concat({
+          name: book.author,
+          id: uuid(),
+        })
+      }
+      return book
+    },
+    editAuthor: (root, args) => {
+      const foundAuthor = authors.find(author => author.name == args.name)
+      if (!foundAuthor) {
+        return null
+      }
+      const editedAuthor = { ...foundAuthor, born: args.setBornTo }
+      authors = authors.map(author => author.name === args.name ? editedAuthor : author)
+      return editedAuthor
+    }
   }
 }
 
