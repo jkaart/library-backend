@@ -54,6 +54,7 @@ const typeDefs = `
     bookCount: Int!
     authorCount: Int!
     allBooks(author: String, genre: String): [Book!]!
+    allGenres: [String!]!
     allAuthors: [Author!]!
     me: User
   }
@@ -95,11 +96,14 @@ const resolvers = {
       }
       let filteredBooks = []
       if (args.author) {
-        filteredBooks = books.filter(book => book.author === args.author)
+        filteredBooks = books.filter(book => book.author.name === args.author)
       }
       if (args.genre) {
-        const booksByGenre = books.filter(book => book.genres.includes(args.genre))
-        filteredBooks = filteredBooks.concat(booksByGenre)
+        if (filteredBooks.length === 0) {
+          filteredBooks = args.genre === 'all genres' ? books : books.filter(book => book.genres.includes(args.genre))
+          return filteredBooks
+        }
+        filteredBooks = args.genre === 'all genres' ? filteredBooks : filteredBooks.filter(book => book.genres.includes(args.genre))
       }
       return filteredBooks
     },
@@ -107,17 +111,20 @@ const resolvers = {
     me: (root, args, context) => {
       return context.currentUser
     },
+    allGenres: async () => {
+      const result = await Book.find({}).select({ genres: 1, _id: 0 })
+      return [...new Set(result.flatMap(book => book.genres)), 'all genres']
+    }
   },
   Author: {
     bookCount: async (root) => {
-      return Book.collection.countDocuments({ author: root })
+      return Book.countDocuments({ author: root })
     },
     name: async (root) => {
       const author = await Author.findById(root)
       return author.name
     }
   },
-
   Mutation: {
     addBook: async (root, args, context) => {
       try {
@@ -158,7 +165,7 @@ const resolvers = {
         return book.save()
           .catch(error => {
             console.log(error)
-            throw new GraphQLError('Book title must be unique', {
+            throw new GraphQLError('Book saving failed', {
               extensions: {
                 code: 'BAD_USER_INPUT',
                 invalidArgs: args.title,
@@ -168,7 +175,7 @@ const resolvers = {
           })
       }
       catch (error) {
-        console.log(error)
+        console.log('error', error)
         return error
       }
     },
