@@ -1,3 +1,4 @@
+require('dotenv').config()
 const { ApolloServer } = require('@apollo/server')
 const { startStandaloneServer } = require('@apollo/server/standalone')
 const { GraphQLError } = require('graphql')
@@ -5,8 +6,6 @@ const jwt = require('jsonwebtoken')
 
 const mongoose = require('mongoose')
 mongoose.set('strictQuery', false)
-
-require('dotenv').config()
 
 const Book = require('./models/book')
 const Author = require('./models/author')
@@ -142,7 +141,6 @@ const resolvers = {
             extensions: {
               code: 'BAD_USER_INPUT',
               invalidArgs: args.title,
-              error
             }
           })
         }
