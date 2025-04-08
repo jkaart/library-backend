@@ -32,7 +32,6 @@ const resolvers = {
       return filteredBooks
     },
     allAuthors: async (root, args, context) => {
-      console.log('author.find')
       const authors = await Author.find({})
       const books = await Book.find({}).populate('author')
       const booksCount = books.reduce((accumulator, current) => {
@@ -50,7 +49,6 @@ const resolvers = {
     },
     allGenres: async () => {
       const result = await Book.find({}).select({ genres: 1, _id: 0 })
-      console.log('books.find')
       return [...new Set(result.flatMap(book => book.genres)), 'all genres']
     }
   },
